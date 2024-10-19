@@ -1,19 +1,4 @@
-﻿
-
-Function Get-DesktopPC
-{
- $isDesktop = $true
- if(Get-WmiObject -Class win32_systemenclosure | Where-Object { $_.chassistypes -eq 9 -or $_.chassistypes -eq 10 -or $_.chassistypes -eq 14})
-   {
-   Write-Warning "Computer is a laptop. Laptop dedicated GPU's that are partitioned and assigned to VM may not work with Parsec." 
-   Write-Warning "Thunderbolt 3 or 4 dock based GPU's may work"
-   $isDesktop = $false }
- if (Get-WmiObject -Class win32_battery)
-   { $isDesktop = $false }
- $isDesktop
-}
-
-Function Get-WindowsCompatibleOS {
+﻿Function Get-WindowsCompatibleOS {
 $build = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 if ($build.CurrentBuild -ge 19041 -and ($($build.editionid -like 'Professional*') -or $($build.editionid -like 'Enterprise*') -or $($build.editionid -like 'Education*'))) {
     Return $true
@@ -53,7 +38,7 @@ Function Get-VMGpuPartitionAdapterFriendlyName {
         }
 }
 
-If ((Get-DesktopPC) -and  (Get-WindowsCompatibleOS) -and (Get-HyperVEnabled)) {
+If ((Get-WindowsCompatibleOS) -and (Get-HyperVEnabled)) {
 "System Compatible"
 "Printing a list of compatible GPUs...May take a second"
 "Copy the name of the GPU you want to share..."
