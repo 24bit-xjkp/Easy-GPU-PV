@@ -75,7 +75,8 @@ function Update-VMGpuPartitionDriver {
     param (
         [string]$VMName,
         [string]$GPUName,
-        [string]$Hostname
+        [string]$Hostname,
+        [string]$DriveLetter
     )
 
     $VM = Get-VM -VMName $VMName
@@ -95,14 +96,18 @@ function Update-VMGpuPartitionDriver {
         Write-Host "Waiting for VM to shutdown - make sure there are no unsaved documents..."
     }
 
-    Write-Host "Mounting Drive..."
-    $DriveLetter = (Mount-VHD -Path $VHD.Path -PassThru | Get-Disk | Get-Partition | Get-Volume | Where-Object { $_.DriveLetter } | ForEach-Object DriveLetter)
+    if ($DriveLetter -eq "") {
+        Write-Host "Mounting Drive..."
+        $DriveLetter = (Mount-VHD -Path $VHD.Path -PassThru | Get-Disk | Get-Partition | Get-Volume | Where-Object { $_.DriveLetter } | ForEach-Object DriveLetter)
+    }
 
     Write-Host "Copying GPU Files - this could take a while..."
     Add-VMGPUPartitionAdapterFiles -hostname $Hostname -DriveLetter $DriveLetter -GPUName $GPUName
 
-    Write-Host "Dismounting Drive..."
-    Dismount-VHD -Path $VHD.Path
+    if ($DriveLetter -eq "") {
+        Write-Host "Dismounting Drive..."
+        Dismount-VHD -Path $VHD.Path
+    }
 
     If ($state_was_running) {
         Write-Host "Previous State was running so starting VM..."
