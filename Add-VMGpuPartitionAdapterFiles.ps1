@@ -1,7 +1,8 @@
 param([string]$VMName = $(throw "Parameter missing: -VMName"),
     [string]$GPUName = $(throw "Parameter missing: -GPUName"),
     [decimal]$GPUResourceAllocationPercentage = 100,
-    [string]$Hostname = $ENV:Computername
+    [string]$Hostname = $ENV:Computername,
+    [string]$DriveLetter = ""
 )
 
 Import-Module $PSScriptRoot/Utility.psm1
@@ -29,4 +30,4 @@ Set-VMGpuPartitionAdapter -VMName $VMName -MinPartitionCompute ([math]::round($(
 Set-VM -LowMemoryMappedIoSpace 1Gb -HighMemoryMappedIoSpace 32GB -GuestControlledCacheTypes $true -VMName $VMName
 "GPU partition adapter configuration done ..."
 
-Update-VMGpuPartitionDriver -VMName $VMName -GPUName $GPUName -Hostname $Hostname
+Update-VMGpuPartitionDriver -VMName $VMName -GPUName $GPUName -Hostname $Hostname -DriveLetter $DriveLetter
