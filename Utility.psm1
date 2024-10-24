@@ -22,7 +22,7 @@
     }
     # Get Third Party drivers used, that are not provided by Microsoft and presumably included in the OS
 
-    Write-Host "INFO   : Finding and copying driver files for $GPUName to VM. This could take a while..."
+    Write-Information "INFO   : Finding and copying driver files for $GPUName to VM. This could take a while..."
 
     $Drivers = Get-WmiObject Win32_PNPSignedDriver | Where-Object { $_.DeviceName -eq "$GPUName" }
 
@@ -87,32 +87,79 @@ function Update-VMGpuPartitionDriver {
     }
 
     if ($VM.state -ne "Off") {
-        Write-Host "Attemping to shutdown VM..."
+        Write-Information "Attemping to shutdown VM..."
         Stop-VM -Name $VMName -Force
     }
 
     While ($VM.State -ne "Off") {
         Start-Sleep -s 3
-        Write-Host "Waiting for VM to shutdown - make sure there are no unsaved documents..."
+        Write-Information "Waiting for VM to shutdown - make sure there are no unsaved documents..."
     }
 
     if ($DriveLetter -eq "") {
-        Write-Host "Mounting Drive..."
+        Write-Information "Mounting Drive..."
         $DriveLetter = (Mount-VHD -Path $VHD.Path -PassThru | Get-Disk | Get-Partition | Get-Volume | Where-Object { $_.DriveLetter } | ForEach-Object DriveLetter)
     }
 
-    Write-Host "Copying GPU Files - this could take a while..."
+    Write-Information "Copying GPU Files - this could take a while..."
     Add-VMGPUPartitionAdapterFiles -hostname $Hostname -DriveLetter $DriveLetter -GPUName $GPUName
 
     if ($DriveLetter -eq "") {
-        Write-Host "Dismounting Drive..."
+        Write-Information "Dismounting Drive..."
         Dismount-VHD -Path $VHD.Path
     }
 
     If ($state_was_running) {
-        Write-Host "Previous State was running so starting VM..."
+        Write-Information "Previous State was running so starting VM..."
         Start-VM $VMName
     }
 
-    Write-Host "Done..."
+    Write-Information "Done..."
+}
+
+function Get-GpuDevicePath {
+    param (
+        [string]$GPUName
+    )
+    $PartitionableGPUList = Get-WmiObject -Class "Msvm_PartitionableGpu" -ComputerName $env:COMPUTERNAME -Namespace "ROOT\virtualization\v2"
+    $DeviceID = ((Get-WmiObject Win32_PNPSignedDriver | Where-Object { ($_.Devicename -eq "$GPUName") }).hardwareid).split('\')[1]
+    $DevicePathName = ($PartitionableGPUList | Where-Object name -like "*$deviceid*").Name
+    return $DevicePathName
+}
+
+function Get-AdapterId {
+    param (
+        [string]$VMName,
+        [string]$GPUName
+    )
+    $DevicePathName = Get-GpuDevicePath -GPUName $GPUName
+    $Adapters = Get-VMGpuPartitionAdapter -VMName $VMName
+    foreach($Adapter in $Adapters)
+    {
+        if ($Adapter.InstancePath -eq $DevicePathName) {
+            return $Adapter.Id
+        }
+    }
+}
+
+function Add-Adapter {
+    param (
+        [string]$VMName,
+        [string]$GPUName,
+        [decimal]$GPUResourceAllocationPercentage = 100
+    )
+    Write-Information "Add VM GPU partition adapter ..."
+    $DevicePathName = Get-GpuDevicePath -GPUName $GPUName
+    $AdapterId = (Add-VMGpuPartitionAdapter -VMName $VMName -InstancePath $DevicePathName).Id
+
+    Write-Information "Set VM GPU partition adapter ..."
+    [float]$devider = [math]::round($(100 / $GPUResourceAllocationPercentage), 2)
+    Set-VMGpuPartitionAdapter -VMName $VMName -MinPartitionVRAM ([math]::round($(1000000000 / $devider))) -MaxPartitionVRAM ([math]::round($(1000000000 / $devider))) -OptimalPartitionVRAM ([math]::round($(1000000000 / $devider))) -AdapterId $AdapterId
+    Set-VMGPUPartitionAdapter -VMName $VMName -MinPartitionEncode ([math]::round($(18446744073709551615 / $devider))) -MaxPartitionEncode ([math]::round($(18446744073709551615 / $devider))) -OptimalPartitionEncode ([math]::round($(18446744073709551615 / $devider))) -AdapterId $AdapterId
+    Set-VMGpuPartitionAdapter -VMName $VMName -MinPartitionDecode ([math]::round($(1000000000 / $devider))) -MaxPartitionDecode ([math]::round($(1000000000 / $devider))) -OptimalPartitionDecode ([math]::round($(1000000000 / $devider))) -AdapterId $AdapterId
+    Set-VMGpuPartitionAdapter -VMName $VMName -MinPartitionCompute ([math]::round($(1000000000 / $devider))) -MaxPartitionCompute ([math]::round($(1000000000 / $devider))) -OptimalPartitionCompute ([math]::round($(1000000000 / $devider))) -AdapterId $AdapterId
+
+    Write-Information "Set VM GPU MMIO ..."
+    Set-VM -LowMemoryMappedIoSpace 1Gb -HighMemoryMappedIoSpace 32GB -GuestControlledCacheTypes $true -VMName $VMName
+    Write-Information "GPU partition adapter configuration done ..."
 }
