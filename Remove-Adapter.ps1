@@ -4,5 +4,11 @@ param([string]$VMName = $(throw "Parameter missing: -VMName"),
 
 Import-Module $PSScriptRoot/Utility.psm1
 
-$AdapterId = Get-AdapterId -VMName $VMName -GPUName $GPUName
-Remove-VMGpuPartitionAdapter -VMName $VMName -AdapterId $AdapterId
+If ($GPUName -ne "All") {
+    $AdapterId = Get-AdapterId -VMName $VMName -GPUName $GPUName
+    Remove-VMGpuPartitionAdapter -VMName $VMName -AdapterId $AdapterId
+}
+Else {
+    # 移除所有gpu分区
+    Remove-VMGpuPartitionAdapter -VMName $VMName
+}
