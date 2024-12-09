@@ -150,7 +150,8 @@ function Add-Adapter {
     )
     Write-Information "Add VM GPU partition adapter ..."
     $DevicePathName = Get-GpuDevicePath -GPUName $GPUName
-    $AdapterId = (Add-VMGpuPartitionAdapter -VMName $VMName -InstancePath $DevicePathName).Id
+    Add-VMGpuPartitionAdapter -VMName $VMName -InstancePath $DevicePathName
+    $AdapterId = Get-AdapterId -VMName $VMName -GPUName $GPUName
 
     Write-Information "Set VM GPU partition adapter ..."
     [float]$devider = [math]::round($(100 / $GPUResourceAllocationPercentage), 2)
